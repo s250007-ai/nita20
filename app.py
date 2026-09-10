@@ -64,3 +64,45 @@ with col2:
 
 st.markdown("---")
 st.caption("NITA Academic Analytics © 2026 | Cloud MLOps Architecture Demo")
+
+import streamlit as st
+import pandas as pd
+import numpy as np
+from sklearn.linear_model import LinearRegression
+
+st.set_page_config(page_title="Graduate Admission Predictor", layout="centered")
+
+st.title("🎓 Graduate Admission Chance Predictor")
+st.write("Enter your academic parameters to calculate your estimated admission chance.")
+
+@st.cache_resource
+def train_model():
+    url = "https://raw.githubusercontent.com/selva86/datasets/master/Admission_Predict.csv"
+    df = pd.read_csv(url)
+    df.columns = [c.strip() for c in df.columns]
+    
+    X = df[['GRE Score', 'TOEFL Score', 'University Rating', 'SOP', 'LOR', 'CGPA', 'Research']]
+    y = df['Chance of Admit']
+    
+    model = LinearRegression()
+    model.fit(X, y)
+    return model
+
+model = train_model()
+
+# User inputs
+gre = st.slider("GRE Score", 290, 340, 315)
+toefl = st.slider("TOEFL Score", 92, 120, 105)
+rating = st.selectbox("University Rating", [1, 2, 3, 4, 5], index=2)
+sop = st.slider("Statement of Purpose (SOP)", 1.0, 5.0, 3.5, 0.5)
+lor = st.slider("Letter of Recommendation (LOR)", 1.0, 5.0, 3.5, 0.5)
+cgpa = st.number_input("CGPA (out of 10)", min_value=6.0, max_value=10.0, value=8.5, step=0.1)
+research = st.radio("Research Experience", [0, 1], format_func=lambda x: "Yes" if x == 1 else "No")
+
+if st.button("Predict Admission Chance"):
+    features = np.array([[gre, toefl, rating, sop, lor, cgpa, research]])
+    prediction = model.predict(features)[0]
+    chance_percent = round(prediction * 100, 2)
+    
+    st.markdown("---")
+    st.subheader(f"🎯 Estimated Admission Chance: **{chance_percent}%**")
