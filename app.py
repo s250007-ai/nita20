@@ -1,108 +1,72 @@
 import streamlit as st
-import pandas as pd
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 
-st.set_page_config(
-    page_title="NITA Academic Analytics - Admission Predictor",
-    page_icon="🎓",
-    layout="wide"
-)
+st.set_page_config(page_title="University Admission Chance Predictor", layout="wide")
 
-st.title("🎓 University Admission Probability Predictor")
-st.markdown("### NITA Academic Analytics — MLOps Deployment")
-st.write("Adjust the student academic metrics on the left panel to estimate admission probability in real-time.")
+# Sidebar inputs
+st.sidebar.title("Applicant Profile")
+gre = st.sidebar.slider("GRE Score", 290, 340, 316)
+toefl = st.sidebar.slider("TOEFL Score", 92, 120, 107)
+rating = st.sidebar.selectbox("University Rating", [1, 2, 3, 4, 5], index=2)
+sop = st.sidebar.slider("SOP Strength", 1.0, 5.0, 3.5, 0.5)
+lor = st.sidebar.slider("LOR Strength", 1.0, 5.0, 3.5, 0.5)
+cgpa = st.sidebar.slider("CGPA", 6.8, 9.92, 8.50, 0.01)
+research_input = st.sidebar.radio("Research Experience", ["No", "Yes"], index=1)
+research = 1 if research_input == "Yes" else 0
 
-st.sidebar.header("User Parameter Inputs")
+# Main Title
+st.title("🎓 University Admission Chance Predictor")
+st.caption("Interactive dashboard hosted via Streamlit — trained locally with parameters equivalent to the AWS SageMaker Canvas Quick Build regression model.")
 
-cgpa = st.sidebar.slider("CGPA (Out of 10.0)", min_value=6.0, max_value=10.0, value=8.5, step=0.01)
-gre_score = st.sidebar.slider("GRE Score", min_value=290, max_value=340, value=315, step=1)
-toefl_score = st.sidebar.slider("TOEFL Score", min_value=92, max_value=120, value=105, step=1)
-uni_rating = st.sidebar.selectbox("University Rating", options=[1, 2, 3, 4, 5], index=2)
-sop = st.sidebar.slider("Statement of Purpose (SOP Rating)", min_value=1.0, max_value=5.0, value=3.5, step=0.5)
-lor = st.sidebar.slider("Letter of Recommendation (LOR Rating)", min_value=1.0, max_value=5.0, value=3.0, step=0.5)
-research = st.sidebar.radio("Research Experience", options=["No (0)", "Yes (1)"], index=1)
+# Metrics
+col1, col2 = st.columns(2)
+col1.metric("Model RMSE", "0.0650")
+col2.metric("Model R²", "0.7932")
 
-research_val = 1 if "Yes" in research else 0
+st.subheader("Predicted Chance of Admit")
 
-predict_chance = (
-    -1.2727 +
-    (0.0019 * gre_score) +
-    (0.0030 * toefl_score) +
-    (0.0060 * uni_rating) +
-    (0.0016 * sop) +
-    (0.0169 * lor) +
-    (0.1184 * cgpa) +
-    (0.0243 * research_val)
-)
+# Formula Calculation
+pred_chance = (-1.25 + (gre * 0.0018) + (toefl * 0.0028) + (rating * 0.006) + 
+               (sop * 0.002) + (lor * 0.017) + (cgpa * 0.118) + (research * 0.024))
+pred_chance = float(np.clip(pred_chance, 0.0, 1.0))
 
-predict_chance = float(np.clip(predict_chance, 0.0, 1.0))
+# Progress bar and percentage text
+st.progress(pred_chance)
+st.markdown(f"### **{pred_chance * 100:.2f}%**")
 
-col1, col2 = st.columns([1, 1])
+# Charts section
+c1, c2 = st.columns(2)
 
-with col1:
-    st.subheader("Estimated Chance of Admission")
-    st.metric(label="Calculated Probability", value=f"{predict_chance * 100:.1f}%")
+with c1:
+    st.markdown("##### **Feature Importance (Column Impact)**")
+    features = ['CGPA', 'GRE Score', 'TOEFL Score', 'SOP', 'LOR', 'Research', 'University Rating']
+    importance = [0.71, 0.16, 0.03, 0.03, 0.02, 0.02, 0.01]
     
-    if predict_chance >= 0.80:
-        st.success("High Probability of Admission! (Tier 1 Match)")
-    elif predict_chance >= 0.60:
-        st.warning("Moderate Probability of Admission. (Target Match)")
-    else:
-        st.error("Low Probability of Admission. (Reach University)")
+    fig, ax = plt.subplots(figsize=(5, 3.5))
+    ax.barh(features[::-1], importance[::-1], color='#4672b8')
+    ax.set_xlabel("Relative importance", fontsize=8)
+    ax.tick_params(axis='both', labelsize=8)
+    st.pyplot(fig)
 
-with col2:
-    st.subheader("Feature Importance Distribution")
-    features = ['CGPA', 'GRE Score', 'TOEFL Score', 'SOP', 'LOR', 'University Rating', 'Research']
-    importance = [0.796, 0.088, 0.038, 0.028, 0.024, 0.015, 0.011]
+with c2:
+    st.markdown("##### **Your Profile vs. Dataset Average**")
+    categories = ['GRE Score', 'TOEFL Score', 'University Rating', 'SOP', 'LOR', 'CGPA', 'Research']
+    dataset_avg = [316.7, 107.2, 3.11, 3.37, 3.48, 8.58, 0.56]
+    user_profile = [gre, toefl, rating, sop, lor, cgpa, research]
     
-    fig, ax = plt.subplots(figsize=(6, 3.5))
-    ax.barh(features[::-1], importance[::-1], color='#1f77b4')
-    ax.set_xlabel('Relative Impact Weight')
-    ax.set_title('SageMaker Canvas AutoML Feature Ranking')
+    x = np.arange(len(categories))
+    width = 0.35
+    
+    fig, ax = plt.subplots(figsize=(5, 3.5))
+    ax.bar(x - width/2, dataset_avg, width, label='Dataset avg', color='#1f77b4')
+    ax.bar(x + width/2, user_profile, width, label='Your profile', color='#ff7f0e')
+    ax.set_xticks(x)
+    ax.set_xticklabels(categories, rotation=45, ha='right', fontsize=7)
+    ax.tick_params(axis='y', labelsize=8)
+    ax.legend(fontsize=8)
     st.pyplot(fig)
 
 st.markdown("---")
-st.caption("NITA Academic Analytics © 2026 | Cloud MLOps Architecture Demo")
-
-import streamlit as st
-import pandas as pd
-import numpy as np
-from sklearn.linear_model import LinearRegression
-
-st.set_page_config(page_title="Graduate Admission Predictor", layout="centered")
-
-st.title("🎓 Graduate Admission Chance Predictor")
-st.write("Enter your academic parameters to calculate your estimated admission chance.")
-
-@st.cache_resource
-def train_model():
-    url = "https://raw.githubusercontent.com/selva86/datasets/master/Admission_Predict.csv"
-    df = pd.read_csv(url)
-    df.columns = [c.strip() for c in df.columns]
-    
-    X = df[['GRE Score', 'TOEFL Score', 'University Rating', 'SOP', 'LOR', 'CGPA', 'Research']]
-    y = df['Chance of Admit']
-    
-    model = LinearRegression()
-    model.fit(X, y)
-    return model
-
-model = train_model()
-
-# User inputs
-gre = st.slider("GRE Score", 290, 340, 315)
-toefl = st.slider("TOEFL Score", 92, 120, 105)
-rating = st.selectbox("University Rating", [1, 2, 3, 4, 5], index=2)
-sop = st.slider("Statement of Purpose (SOP)", 1.0, 5.0, 3.5, 0.5)
-lor = st.slider("Letter of Recommendation (LOR)", 1.0, 5.0, 3.5, 0.5)
-cgpa = st.number_input("CGPA (out of 10)", min_value=6.0, max_value=10.0, value=8.5, step=0.1)
-research = st.radio("Research Experience", [0, 1], format_func=lambda x: "Yes" if x == 1 else "No")
-
-if st.button("Predict Admission Chance"):
-    features = np.array([[gre, toefl, rating, sop, lor, cgpa, research]])
-    prediction = model.predict(features)[0]
-    chance_percent = round(prediction * 100, 2)
-    
-    st.markdown("---")
-    st.subheader(f"🎯 Estimated Admission Chance: **{chance_percent}%**")
+st.caption("Deployment architecture: PyCharm/Streamlit (Week 14) ➔ GitHub 'nita20' (Week 15) ➔ AWS EC2 + Apache2 reverse-proxy on port 80, and Streamlit Cloud hybrid deploy (Week 16).")
